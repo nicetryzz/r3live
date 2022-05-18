@@ -64,6 +64,11 @@ Dr. Fu Zhang < fuzhang@hku.hk >.
 #include "tools_mem_used.h"
 #include "tools_logger.hpp"
 #include "tools_ros.hpp"
+
+#include "meshing/MVS/interface.h"
+#include <sys/stat.h>
+#include <string>
+
 // #include ""
 // cv::RNG g_rng = cv::RNG(0);
 Common_tools::Cost_time_logger              g_cost_time_logger;
@@ -92,6 +97,127 @@ using PointType = pcl::PointXYZRGBA;
 pcl::PointCloud<PointType>::Ptr pcl_pc_rgb = nullptr;
 pcl::KdTreeFLANN<PointType> kdtree;
 
+bool r3live_map_to_openMVS( Offline_map_recorder &r3live_map_recorder, std::string input_dir, std::string output_dir ){
+    MVS::Interface scene;
+
+    // define a platform with all the intrinsic group
+    MVS::Interface::Platform platform;
+    MVS::Interface::Platform::Camera camera;
+    camera.width = r3live_map_recorder.m_image_pose_vec[ 0 ]->m_img_cols;
+    camera.height = r3live_map_recorder.m_image_pose_vec[ 0 ]->m_img_rows;
+    double          fx = r3live_map_recorder.m_image_pose_vec[ 0 ]->fx;
+    double          fy = r3live_map_recorder.m_image_pose_vec[ 0 ]->fy;
+    double          cx = r3live_map_recorder.m_image_pose_vec[ 0 ]->cx;
+    double          cy = r3live_map_recorder.m_image_pose_vec[ 0 ]->cy;
+    MVS::Interface::Mat33d camera_intrinsic(fx , 0, cx , 0, fy , cy , 0, 0, 1);
+    camera.K = camera_intrinsic;
+    camera.R = MVS::Interface::Mat33d::eye();
+    camera.C = MVS::Interface::Pos3d(0,0,0);
+    platform.cameras.push_back(camera);
+
+    int     number_of_image_frame = r3live_map_recorder.m_pts_in_views_vec.size();
+    scene.images.reserve(number_of_image_frame);
+
+    std::unordered_map< std::shared_ptr< RGB_pts >, std::vector< int > > m_pts_with_view;
+
+    cout<< number_of_image_frame << endl;
+    cout<< r3live_map_recorder.m_image_pose_vec.size() << endl;
+
+    int min_frame_id = r3live_map_recorder.m_image_pose_vec[ 0 ]->m_frame_idx;
+    for (int frame_idx = 0; frame_idx < number_of_image_frame; frame_idx++ )
+    {
+        struct stat buffer;
+        
+        std::shared_ptr< Image_frame > img_ptr = r3live_map_recorder.m_image_pose_vec[ frame_idx ];
+
+        MVS::Interface::Image image;
+
+        if((img_ptr->m_frame_idx-min_frame_id)%10==0){
+            const std::string srcImage = input_dir + "/"+std::to_string(img_ptr->m_frame_idx) +".jpg";
+            image.name = srcImage;
+            image.ID = (img_ptr->m_frame_idx-min_frame_id)/10;
+            // image.ID = (img_ptr->m_frame_idx-min_frame_id);
+            image.poseID = image.ID;
+            image.platformID = 0;
+            image.cameraID = 0;
+            stat(srcImage.c_str(),&buffer);
+            if ( buffer.st_size == 0)
+            {
+            cout<<"Cannot read the corresponding image: " << srcImage << endl;
+            return false;
+            }
+            vec_3   pose_t = -img_ptr->m_pose_c2w_q.toRotationMatrix().transpose() * img_ptr->m_pose_c2w_t;
+
+            MVS::Interface::Platform::Pose pose;
+            cv::eigen2cv(img_ptr->m_pose_c2w_q.toRotationMatrix(),pose.R);
+            pose.C = MVS::Interface::Pos3d(pose_t(0), pose_t(1), pose_t(2));
+            platform.poses.push_back(pose);
+            scene.images.emplace_back(image);
+
+            for ( int pt_idx = 0; pt_idx < r3live_map_recorder.m_pts_in_views_vec[ frame_idx ].size(); pt_idx++ )
+            {
+                m_pts_with_view[ r3live_map_recorder.m_pts_in_views_vec[ frame_idx ][ pt_idx ] ].push_back( image.ID  );
+            }
+        }
+        
+    }
+    scene.platforms.push_back(platform);
+
+    scene.vertices.reserve(m_pts_with_view.size());
+      // define structure
+    for ( std::unordered_map< std::shared_ptr< RGB_pts >, std::vector< int > >::iterator it = m_pts_with_view.begin(); it != m_pts_with_view.end(); it++ )
+    {
+        if ( ( it->second.size() >= 0 ) && ( ( it->first )->m_N_rgb > 5 ) )
+        {
+            vec_3                     pt_pos = ( ( it->first ) )->get_pos();
+            MVS::Interface::Vertex vert;
+            MVS::Interface::Vertex::ViewArr& views = vert.views;
+            for ( auto _idx : it->second )
+            {
+                _INTERFACE_NAMESPACE::Interface::Vertex::View view;
+                view.imageID = _idx;
+                view.confidence = 0;
+                views.push_back( view );
+            }
+            if (views.size() < 2)
+            continue;
+            std::sort(
+            views.begin(), views.end(),
+            [] (const MVS::Interface::Vertex::View& view0, const _INTERFACE_NAMESPACE::Interface::Vertex::View& view1)
+            {
+                return view0.imageID < view1.imageID;
+            }
+            );
+            vert.X = MVS::Interface::Pos3f(pt_pos(0), pt_pos(1), pt_pos(2));
+            scene.vertices.push_back(vert);
+        }
+    }
+    cout << "before write" <<scene.platforms[0].poses.size()<<endl;
+    // write OpenMVS data
+    if (!MVS::ARCHIVE::SerializeSave(scene, output_dir + "/scene.mvs"))
+        return false;
+    cout << "after write" <<scene.platforms[0].poses.size()<<endl;
+    cout
+        << "Scene saved to OpenMVS interface format:"<<output_dir << "/scene.mvs \n"
+        << " #platforms: " << scene.platforms.size();
+        for (int i = 0; i < scene.platforms.size(); ++i)
+        {
+        cout << "  platform ( " << i << " ) #cameras: " << scene.platforms[i].cameras.size();
+        }
+    cout
+        << "  " << scene.images.size() << " images " 
+        << "  " << scene.vertices.size() << " Landmarks";
+
+    MVS::Interface scene_read;
+    MVS::ARCHIVE::SerializeLoad(scene_read, output_dir + "/scene.mvs");
+    cout << "read" <<endl;
+    cout <<  scene_read.platforms.size() <<endl;
+    cout << scene_read.platforms[0].poses.size()<<endl;
+    cout << scene_read.platforms[0].cameras.size()<<endl;
+    cout << scene_read.images.size()<<endl;
+    cout << scene_read.vertices.size()<<endl;
+    return true;
+}
 
 // TODO
 void r3live_map_to_mvs_scene( Offline_map_recorder &r3live_map_recorder, MVS::ImageArr &m_images, MVS::PointCloud &m_pointcloud )
@@ -109,8 +235,8 @@ void r3live_map_to_mvs_scene( Offline_map_recorder &r3live_map_recorder, MVS::Im
     double          fy = r3live_map_recorder.m_image_pose_vec[ 0 ]->fy;
     double          cx = r3live_map_recorder.m_image_pose_vec[ 0 ]->cx;
     double          cy = r3live_map_recorder.m_image_pose_vec[ 0 ]->cy;
-    camera_intrinsic << fx / image_width, 0, cx / image_width, 0, fy / image_width, cy / image_width, 0, 0, 1;
-    // camera_intrinsic << fx , 0, cx , 0, fy , cy , 0, 0, 1;
+    //camera_intrinsic << fx / image_width, 0, cx / image_width, 0, fy / image_width, cy / image_width, 0, 0, 1;
+    camera_intrinsic << fx , 0, cx , 0, fy , cy , 0, 0, 1;
     cout << "Iamge resolution  = " << r3live_map_recorder.m_image_pose_vec[ 0 ]->m_img_cols << " X " << r3live_map_recorder.m_image_pose_vec[ 0 ]->m_img_rows << endl;
     // cout << "Camera intrinsic: \r\n" << camera_intrinsic << endl;
 
@@ -389,12 +515,13 @@ int main( int argc, char **argv )
     
     cout << "Number of rgb points: " << global_map.m_rgb_pts_vec.size() << endl;
     cout << "Size of frames: " << r3live_map_recorder.m_image_pose_vec.size() << endl;
-    reconstruct_mesh( r3live_map_recorder, g_working_dir );
-    cout << "=== Reconstruct mesh finish ! ===" << endl;
+    r3live_map_to_openMVS( r3live_map_recorder, g_working_dir +"/images", g_working_dir );
+    // reconstruct_mesh( r3live_map_recorder, g_working_dir );
+    // cout << "=== Reconstruct mesh finish ! ===" << endl;
 
-    std::string input_mesh_name = std::string( g_working_dir ).append( "/reconstructed_mesh.obj" );
-    std::string output_mesh_name = std::string( g_working_dir ).append( "/textured_mesh.ply" );
-    texture_mesh(r3live_map_recorder, input_mesh_name, output_mesh_name, g_texturing_smooth_factor );
+    // std::string input_mesh_name = std::string( g_working_dir ).append( "/reconstructed_mesh.obj" );
+    // std::string output_mesh_name = std::string( g_working_dir ).append( "/textured_mesh.ply" );
+    // texture_mesh(r3live_map_recorder, input_mesh_name, output_mesh_name, g_texturing_smooth_factor );
 
     exit(0);
     return 0;

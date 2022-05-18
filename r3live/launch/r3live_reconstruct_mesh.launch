@@ -32,7 +32,7 @@
     <param name="smooth_mesh_factor" value="5" />
     
     <!-- The working directory, where we input the offline maps files and output the reconstructed mesh  -->
-    <param name="working_dir" value="$(env HOME)/r3live_output" />
+    <param name="working_dir" value="/home/hqlab/workspace/r3live_result/2022_5_9/test3" />
     
     <!-- The factor of smoothing the texture of mesh -->
     <param name="texturing_smooth_factor" value="10" />

@@ -49,6 +49,8 @@ Dr. Fu Zhang < fuzhang@hku.hk >.
 // #include "photometric_error.hpp"
 #include "tools_mem_used.h"
 #include "tools_logger.hpp"
+#include <string>
+
 
 Common_tools::Cost_time_logger              g_cost_time_logger;
 std::shared_ptr< Common_tools::ThreadPool > m_thread_pool_ptr;
@@ -407,6 +409,9 @@ void   R3LIVE::process_image( cv::Mat &temp_img, double msg_time )
     {
         img_get = temp_img; // clone ?
     }
+
+    cv::imwrite( m_map_output_dir+"/images/" + std::to_string( total_frame_count )+".jpg",img_get);
+
     std::shared_ptr< Image_frame > img_pose = std::make_shared< Image_frame >( g_cam_K );
     if ( m_if_pub_raw_img )
     {
