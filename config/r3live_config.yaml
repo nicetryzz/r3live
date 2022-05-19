@@ -13,7 +13,7 @@ r3live_common:
    estimate_i2c_extrinsic: 1        # If enable estimate the extrinsic between camera and IMU. [default = 1] 
    estimate_intrinsic: 1            # If enable estimate the online intrinsic calibration of the camera lens. [default = 1] 
    maximum_vio_tracked_pts: 600     # The maximum points for tracking. [default = 600]
-   append_global_map_point_step: 1  # The point step of append point to global map. [default = 4]
+   append_global_map_point_step: 4  # The point step of append point to global map. [default = 4]
 
 # r3live_vio:
 #    image_width: 1280
