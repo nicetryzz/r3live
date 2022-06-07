@@ -28,9 +28,13 @@ find_package(catkin REQUIRED COMPONENTS
                     livox_ros_driver
             )
 
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
+
 # find_package(Ceres REQUIRED)
 find_package(PCL REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(Sophus REQUIRED)
+find_package(G2O REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
@@ -76,6 +80,7 @@ include_directories(
   ./src/tools/
   ./src/rgb_map 
   ./src/meshing
+  ./src/pose_graph
 )
 
 
@@ -148,6 +153,7 @@ if(CGAL_FOUND)
                                 src/meshing/MVS/PLY.cpp
                                 src/meshing/MVS/OBJ.cpp
                                 src/meshing/MVS/IBFS.cpp
+                                src/pose_graph/r3live_pose_graph.cpp
                                 )
 target_link_libraries(r3live_meshing 
                                   ${catkin_LIBRARIES}
@@ -157,6 +163,10 @@ target_link_libraries(r3live_meshing
                                   ${CGAL_LIBS}
                                   ${OpenCV_LIBRARIES}
                                   ${JPEG_LIBRARIES} 
+                                  ${Sophus_INCLUDE_DIRS}
+                                  g2o_core g2o_stuff
+                                  ${CHOLMOD_LIBRARIES}
+                                  ${Sophus_LIBRARIES}
                                   gmp
                                   pcl_common 
                                   pcl_io

@@ -61,6 +61,8 @@ Dr. Fu Zhang < fuzhang@hku.hk >.
 #include "meshing/MVS/Mesh.h"
 #include "meshing/build_mesh.hpp"
 
+#include "pose_graph/r3live_pose_graph.h"
+
 #include "tools_mem_used.h"
 #include "tools_logger.hpp"
 #include "tools_ros.hpp"
@@ -68,6 +70,8 @@ Dr. Fu Zhang < fuzhang@hku.hk >.
 #include "meshing/MVS/interface.h"
 #include <sys/stat.h>
 #include <string>
+#include <iostream>
+#include <fstream>
 
 // #include ""
 // cv::RNG g_rng = cv::RNG(0);
@@ -97,6 +101,30 @@ using PointType = pcl::PointXYZRGBA;
 pcl::PointCloud<PointType>::Ptr pcl_pc_rgb = nullptr;
 pcl::KdTreeFLANN<PointType> kdtree;
 
+bool write_trajectory(Offline_map_recorder r3live_map_recorder, char* write_file){
+    for (int frame_idx = 0; frame_idx < r3live_map_recorder.m_image_pose_vec.size(); frame_idx++ ){
+        std::ofstream out(write_file,std::ios::app);
+        std::shared_ptr< Image_frame > img_ptr = r3live_map_recorder.m_image_pose_vec[ frame_idx ];
+        Eigen::Quaterniond q = img_ptr->m_pose_c2w_q;
+        vec_3  t = -img_ptr->m_pose_c2w_q.toRotationMatrix().transpose() * img_ptr->m_pose_c2w_t;
+        out << t(0) << " " << t(1) << " " << t(2) << " " << q.w() << " " << q.x() << " " << q.y() << " " << q.z() << endl;
+        out.close();
+    }
+    
+    return true;
+}
+
+bool print_diff(Offline_map_recorder r3live_map_recorder){
+    int  number_of_image_frame = r3live_map_recorder.m_pts_in_views_vec.size();
+    std::shared_ptr< Image_frame > first_img_ptr = r3live_map_recorder.m_image_pose_vec[ 0 ];
+    std::shared_ptr< Image_frame > last_img_ptr = r3live_map_recorder.m_image_pose_vec[ number_of_image_frame-1 ];
+    Eigen::Matrix3d R = last_img_ptr->m_pose_c2w_q.toRotationMatrix() * first_img_ptr->m_pose_c2w_q.toRotationMatrix().transpose();
+    Eigen::Vector3d C = last_img_ptr->m_pose_c2w_q.toRotationMatrix() * (last_img_ptr->m_pose_c2w_q.toRotationMatrix() * last_img_ptr->m_pose_c2w_t - first_img_ptr->m_pose_c2w_q.toRotationMatrix() * first_img_ptr->m_pose_c2w_t);
+    cout << R << endl;
+    cout << C << endl;
+    return true;
+}
+
 bool r3live_map_to_openMVS( Offline_map_recorder &r3live_map_recorder, std::string input_dir, std::string output_dir ){
     MVS::Interface scene;
 
@@ -123,41 +151,51 @@ bool r3live_map_to_openMVS( Offline_map_recorder &r3live_map_recorder, std::stri
     cout<< number_of_image_frame << endl;
     cout<< r3live_map_recorder.m_image_pose_vec.size() << endl;
 
+    vec_3   last_pose_t = vec_3( -100, 0, 0 );
+    eigen_q last_pose_q = eigen_q( 1, 0, 0, 1 );
+    int frame_index = 0;
     int min_frame_id = r3live_map_recorder.m_image_pose_vec[ 0 ]->m_frame_idx;
     for (int frame_idx = 0; frame_idx < number_of_image_frame; frame_idx++ )
     {
         struct stat buffer;
         
         std::shared_ptr< Image_frame > img_ptr = r3live_map_recorder.m_image_pose_vec[ frame_idx ];
-
         MVS::Interface::Image image;
 
-        if((img_ptr->m_frame_idx-min_frame_id)%10==0){
-            const std::string srcImage = input_dir + "/"+std::to_string(img_ptr->m_frame_idx) +".jpg";
-            image.name = srcImage;
-            image.ID = (img_ptr->m_frame_idx-min_frame_id)/10;
-            // image.ID = (img_ptr->m_frame_idx-min_frame_id);
-            image.poseID = image.ID;
-            image.platformID = 0;
-            image.cameraID = 0;
-            stat(srcImage.c_str(),&buffer);
-            if ( buffer.st_size == 0)
-            {
-            cout<<"Cannot read the corresponding image: " << srcImage << endl;
-            return false;
-            }
-            vec_3   pose_t = -img_ptr->m_pose_c2w_q.toRotationMatrix().transpose() * img_ptr->m_pose_c2w_t;
+        vec_3   pose_t = -img_ptr->m_pose_c2w_q.toRotationMatrix().transpose() * img_ptr->m_pose_c2w_t;
+        if ( ( pose_t - last_pose_t ).norm() < g_add_keyframe_t && ( img_ptr->m_pose_c2w_q.angularDistance( last_pose_q ) * 57.3 < g_add_keyframe_R ) )
+        {
+            continue;
+        }
+        last_pose_t = pose_t;
+        last_pose_q = img_ptr->m_pose_c2w_q;
+        const std::string srcImage = input_dir + "/"+std::to_string(img_ptr->m_frame_idx) +".jpg";
+        image.name = srcImage;
+        image.ID = frame_index;
+        frame_index++;
+        // image.ID = (img_ptr->m_frame_idx-min_frame_id);
+        image.poseID = image.ID;
+        image.platformID = 0;
+        image.cameraID = 0;
+        stat(srcImage.c_str(),&buffer);
+        if ( buffer.st_size == 0)
+        {
+        cout<<"Cannot read the corresponding image: " << srcImage << endl;
+        return false;
+        }
+        MVS::Interface::Platform::Pose pose;
+        Eigen::Matrix3d trans = img_ptr->m_pose_c2w_q.toRotationMatrix();
+        cv::eigen2cv(trans,pose.R);
+        pose.C = MVS::Interface::Pos3d(pose_t(0), pose_t(1), pose_t(2));
+        platform.poses.push_back(pose);
+        scene.images.emplace_back(image);
 
-            MVS::Interface::Platform::Pose pose;
-            cv::eigen2cv(img_ptr->m_pose_c2w_q.toRotationMatrix(),pose.R);
-            pose.C = MVS::Interface::Pos3d(pose_t(0), pose_t(1), pose_t(2));
-            platform.poses.push_back(pose);
-            scene.images.emplace_back(image);
-
-            for ( int pt_idx = 0; pt_idx < r3live_map_recorder.m_pts_in_views_vec[ frame_idx ].size(); pt_idx++ )
-            {
+        for ( int pt_idx = 0; pt_idx < r3live_map_recorder.m_pts_in_views_vec[ frame_idx ].size(); pt_idx++ )
+        {
+            vec_3                     pt_pos = ( r3live_map_recorder.m_pts_in_views_vec[ frame_idx ][ pt_idx ] )->get_pos();
+            // if(sqrt( pow(pt_pos(0)-pose_t(0),2) + pow(pt_pos(1)-pose_t(1),2) + pow(pt_pos(2)-pose_t(2),2))<50){
                 m_pts_with_view[ r3live_map_recorder.m_pts_in_views_vec[ frame_idx ][ pt_idx ] ].push_back( image.ID  );
-            }
+            // }
         }
         
     }
@@ -179,8 +217,6 @@ bool r3live_map_to_openMVS( Offline_map_recorder &r3live_map_recorder, std::stri
                 view.confidence = 0;
                 views.push_back( view );
             }
-            if (views.size() < 2)
-            continue;
             std::sort(
             views.begin(), views.end(),
             [] (const MVS::Interface::Vertex::View& view0, const _INTERFACE_NAMESPACE::Interface::Vertex::View& view1)
@@ -282,7 +318,10 @@ void r3live_map_to_mvs_scene( Offline_map_recorder &r3live_map_recorder, MVS::Im
 
         for ( int pt_idx = 0; pt_idx < r3live_map_recorder.m_pts_in_views_vec[ frame_idx ].size(); pt_idx++ )
         {
-            m_pts_with_view[ r3live_map_recorder.m_pts_in_views_vec[ frame_idx ][ pt_idx ] ].push_back( image.ID  );
+            vec_3                     pt_pos = ( r3live_map_recorder.m_pts_in_views_vec[ frame_idx ][ pt_idx ] )->get_pos();
+            // if(sqrt( pow(pt_pos(0)-pose_t(0),2) + pow(pt_pos(1)-pose_t(1),2) + pow(pt_pos(2)-pose_t(2),2))<50){
+                m_pts_with_view[ r3live_map_recorder.m_pts_in_views_vec[ frame_idx ][ pt_idx ] ].push_back( image.ID  );
+            // }
         }
         cout << ANSI_DELETE_CURRENT_LINE;
         printf( "\33[2K\rAdd frames: %u%%, total_points = %u ...", frame_idx * 100 / ( number_of_image_frame - 1 ), m_pts_with_view.size() );
@@ -393,7 +432,6 @@ void reconstruct_mesh( Offline_map_recorder &r3live_map_recorder, std::string ou
     MVS::Mesh       reconstructed_mesh;
 
     r3live_map_to_mvs_scene( r3live_map_recorder, m_images, m_pointcloud );
-    // return;
     
     ReconstructMesh( g_insert_pt_dis, g_if_use_free_space_support, 4, g_thickness_factor, g_quality_factor, reconstructed_mesh, m_images, m_pointcloud );
     printf( "Mesh reconstruction completed: %u vertices, %u faces\n", reconstructed_mesh.vertices.GetSize(), reconstructed_mesh.faces.GetSize() );
@@ -515,13 +553,19 @@ int main( int argc, char **argv )
     
     cout << "Number of rgb points: " << global_map.m_rgb_pts_vec.size() << endl;
     cout << "Size of frames: " << r3live_map_recorder.m_image_pose_vec.size() << endl;
+    cout << "Before pose graph:" << endl;
+    write_trajectory(r3live_map_recorder, "/home/hqlab/data/small_unlimit.txt");
+    print_diff(r3live_map_recorder);
+    pose_graph(r3live_map_recorder);
+    print_diff(r3live_map_recorder);
+    write_trajectory(r3live_map_recorder, "/home/hqlab/data/small_unlimit_pg.txt");
     r3live_map_to_openMVS( r3live_map_recorder, g_working_dir +"/images", g_working_dir );
-    // reconstruct_mesh( r3live_map_recorder, g_working_dir );
-    // cout << "=== Reconstruct mesh finish ! ===" << endl;
+    reconstruct_mesh( r3live_map_recorder, g_working_dir );
+    cout << "=== Reconstruct mesh finish ! ===" << endl;
 
-    // std::string input_mesh_name = std::string( g_working_dir ).append( "/reconstructed_mesh.obj" );
-    // std::string output_mesh_name = std::string( g_working_dir ).append( "/textured_mesh.ply" );
-    // texture_mesh(r3live_map_recorder, input_mesh_name, output_mesh_name, g_texturing_smooth_factor );
+    std::string input_mesh_name = std::string( g_working_dir ).append( "/reconstructed_mesh.obj" );
+    std::string output_mesh_name = std::string( g_working_dir ).append( "/textured_mesh.ply" );
+    texture_mesh(r3live_map_recorder, input_mesh_name, output_mesh_name, g_texturing_smooth_factor );
 
     exit(0);
     return 0;

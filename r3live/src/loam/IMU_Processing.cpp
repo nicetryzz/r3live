@@ -429,19 +429,19 @@ void ImuProcess::lic_point_cloud_undistort( const MeasureGroup &meas, const Stat
 
     /** change aviliable distance of livox **/
     
-    auto it = pcl_out.points.begin();
-    while (it != pcl_out.points.end()){
-        float x, y, z;
-        x = it->x;
-        y = it->y;
-        z = it->z;
-        //std::cout << "x: " << x << " y: " << y << " z: " << z << endl;
-        if( sqrt( pow(x,2) + pow(y,2) + pow(z,2)) > 15 ){
-            it = pcl_out.points.erase(it);
-        }
-        else
-            ++it;
-    }
+    // auto it = pcl_out.points.begin();
+    // while (it != pcl_out.points.end()){
+    //     float x, y, z;
+    //     x = it->x;
+    //     y = it->y;
+    //     z = it->z;
+    //     //std::cout << "x: " << x << " y: " << y << " z: " << z << endl;
+    //     if( sqrt( pow(x,2) + pow(y,2) + pow(z,2)) > 15 ){
+    //         it = pcl_out.points.erase(it);
+    //     }
+    //     else
+    //         ++it;
+    // }
     
 }
 
