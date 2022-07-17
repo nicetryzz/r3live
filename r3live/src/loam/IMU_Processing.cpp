@@ -425,7 +425,12 @@ void ImuProcess::lic_point_cloud_undistort( const MeasureGroup &meas, const Stat
             if ( it_pcl == pcl_out.points.begin() )
                 break;
         }
-    }
+    }  
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZINormal> sor;
+	sor.setInputCloud(pcl_out.makeShared());
+	sor.setMeanK(50);
+	sor.setStddevMulThresh(1.0);
+	sor.filter(pcl_out);
 
     /** change aviliable distance of livox **/
     

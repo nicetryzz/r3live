@@ -64,6 +64,16 @@ vec_3 RGB_pts::get_pos()
     return vec_3(m_pos[0], m_pos[1], m_pos[2]);
 }
 
+void RGB_pts::set_intensity( const double intensity )
+{
+    m_intensity = intensity;
+}
+
+double RGB_pts::get_intensity()
+{
+    return m_intensity;
+} 
+
 mat_3_3 RGB_pts::get_rgb_cov()
 {
     mat_3_3 cov_mat = mat_3_3::Zero();
@@ -347,6 +357,7 @@ int Global_map::append_points_to_global_map(pcl::PointCloud<T> &pc_in, double  a
         acc++;
         std::shared_ptr<RGB_pts> pt_rgb = std::make_shared<RGB_pts>();
         pt_rgb->set_pos(vec_3(pc_in.points[pt_idx].x, pc_in.points[pt_idx].y, pc_in.points[pt_idx].z));
+        // pt_rgb->set_intensity((double)pc_in.points[pt_idx].intensity);
         pt_rgb->m_pt_index = m_rgb_pts_vec.size();
         m_rgb_pts_vec.push_back(pt_rgb);
         m_hashmap_3d_pts.insert(grid_x, grid_y, grid_z, pt_rgb);
@@ -617,6 +628,7 @@ void Global_map::save_to_pcd(std::string dir_name, std::string _file_name, int s
     cout << "Save Rgb points to " << file_name << endl;
     fflush(stdout);
     pcl::PointCloud<pcl::PointXYZRGB> pc_rgb;
+    // pcl::PointCloud<pcl::PointXYZI> pc_rgb;
     long pt_size = m_rgb_pts_vec.size();
     pc_rgb.resize(pt_size);
     long pt_count = 0;
@@ -637,6 +649,7 @@ void Global_map::save_to_pcd(std::string dir_name, std::string _file_name, int s
         pc_rgb.points[ pt_count ].x = m_rgb_pts_vec[ i ]->m_pos[ 0 ];
         pc_rgb.points[ pt_count ].y = m_rgb_pts_vec[ i ]->m_pos[ 1 ];
         pc_rgb.points[ pt_count ].z = m_rgb_pts_vec[ i ]->m_pos[ 2 ];
+        // pc_rgb.points[ pt_count ].intensity = m_rgb_pts_vec[ i ]->m_intensity;
         pc_rgb.points[ pt_count ].r = m_rgb_pts_vec[ i ]->m_rgb[ 2 ];
         pc_rgb.points[ pt_count ].g = m_rgb_pts_vec[ i ]->m_rgb[ 1 ];
         pc_rgb.points[ pt_count ].b = m_rgb_pts_vec[ i ]->m_rgb[ 0 ];
@@ -649,6 +662,12 @@ void Global_map::save_to_pcd(std::string dir_name, std::string _file_name, int s
     cout << "Now write to: " << file_name << endl; 
     pcl::io::savePCDFileBinary(std::string(file_name).append(".pcd"), pc_rgb);
     cout << "Save PCD cost time = " << tim.toc() << endl;
+}
+
+// TODO
+
+void Global_map::filter()
+{
 }
 
 void Global_map::save_and_display_pointcloud(std::string dir_name, std::string file_name, int save_pts_with_views)

@@ -24,6 +24,7 @@
 #include <sensor_msgs/PointCloud2.h>
 // #include <fast_lio/States.h>
 #include <geometry_msgs/Vector3.h>
+#include <pcl/filters/statistical_outlier_removal.h> 
 
 /// *************Preconfiguration
 #define MAX_INI_COUNT (20)

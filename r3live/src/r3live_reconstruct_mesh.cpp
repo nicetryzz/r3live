@@ -556,7 +556,7 @@ int main( int argc, char **argv )
     cout << "Before pose graph:" << endl;
     write_trajectory(r3live_map_recorder, "/home/hqlab/data/small_unlimit.txt");
     print_diff(r3live_map_recorder);
-    pose_graph(r3live_map_recorder);
+    // pose_graph(r3live_map_recorder);
     print_diff(r3live_map_recorder);
     write_trajectory(r3live_map_recorder, "/home/hqlab/data/small_unlimit_pg.txt");
     r3live_map_to_openMVS( r3live_map_recorder, g_working_dir +"/images", g_working_dir );

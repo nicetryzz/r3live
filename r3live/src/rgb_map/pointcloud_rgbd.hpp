@@ -68,6 +68,7 @@ class RGB_pts
     std::atomic<double> m_pos[3];
     std::atomic<double> m_rgb[3];
     std::atomic<double> m_cov_rgb[3];
+    std::atomic<double> m_intensity;
     std::atomic<double> m_gray;
     std::atomic<double> m_cov_gray;
     std::atomic<int> m_N_gray;
@@ -76,6 +77,7 @@ class RGB_pts
     double m_pos[ 3 ] = { 0 };
     double m_rgb[ 3 ] = { 0 };
     double m_cov_rgb[ 3 ] = { 0 };
+    double m_intensity = 0;
     double m_gray = 0;
     double m_cov_gray = 0;
     int    m_N_gray = 0;
@@ -115,6 +117,8 @@ class RGB_pts
     ~RGB_pts(){};
 
     void set_pos( const vec_3 &pos );
+    void set_intensity( const double intensity );
+    double get_intensity();
     vec_3          get_pos();
     vec_3          get_rgb();
     mat_3_3        get_rgb_cov();
@@ -134,6 +138,7 @@ class RGB_pts
         ar &m_gray;
         ar &m_N_rgb;
         ar &m_N_gray;
+        ar &m_intensity;
     }
 };
 using RGB_pt_ptr = std::shared_ptr< RGB_pts >;
@@ -199,6 +204,7 @@ struct Global_map
     void save_to_pcd( std::string dir_name, std::string file_name = std::string( "/rgb_pt" ) , int save_pts_with_views = 3);
     void save_and_display_pointcloud( std::string dir_name = std::string( "/home/ziv/temp/" ), std::string file_name = std::string( "/rgb_pt" ) ,  int save_pts_with_views = 3);
     void render_pts_in_voxels( std::shared_ptr< Image_frame > &img_ptr, std::vector< std::shared_ptr< RGB_pts > > &voxels_for_render, double obs_time = 0 );
+    void filter();
 
   private:
     friend class boost::serialization::access;
