@@ -88,7 +88,7 @@ source ~/catkin_ws/devel/setup.bash
 
 ## 5. Run our examples
 ### 5.1 Download our rosbag files ([r3live_dataset](https://github.com/ziv-lin/r3live_dataset)) 
-Our datasets for evaluation can be download from our [Google drive](https://drive.google.com/drive/folders/15i-TRa0EA8BCbNdARVqPMDsU9JOlagVF?usp=sharing) or [Baidu-NetDisk [百度网盘]](https://pan.baidu.com/s/1zmVxkcwOSul8oTBwaHfuFg) (code提取码: wwxw). We have released totally **9** rosbag files for evaluating r3live, with the introduction of these datasets can be found on this [page](https://github.com/ziv-lin/r3live_dataset).
+Our datasets for evaluation can be download from our [Google drive](https://drive.google.com/drive/file/d/1HnlDSFc1VmWIGKCHnpUAxZwI0mHASatd/view?usp=sharing).
 
 ### 5.2 Run our examples
 After you have downloaded our bag files, you can now run our example ^_^
@@ -96,7 +96,11 @@ After you have downloaded our bag files, you can now run our example ^_^
 roslaunch r3live r3live_bag.launch
 rosbag play YOUR_DOWNLOADED.bag
 ```
-If everything is correct, you will get the result that matches our [paper](https://github.com/hku-mars/r3live/blob/master/papers/R3LIVE:%20A%20Robust%2C%20Real-time%2C%20RGB-colored%2C%20LiDAR-Inertial-Visual%20tightly-coupled%20stateEstimation%20and%20mapping%20package.pdf) and the results posted on this [page](https://github.com/ziv-lin/r3live_dataset). 
+You can view mapping process on rviz like the picture below.
+<div align="center">
+<img src="./mapping.png" alt="video" width="80%" />
+</div>
+
 
 ### 5.3 Save the maps to your disk
 R3LIVE allow you to save the maps you build at anytime you wanted. You just need to click on the "Control panel" and press 'S' or 's' key.
@@ -109,6 +113,16 @@ After you have save your offline map on your disk (default save in directory: ${
 ```
 roslaunch r3live r3live_reconstruct_mesh.launch
 ```
+It will generate a .mvs file for following openMVS work.
+```
+sudo /usr/local/bin/OpenMVS/ReconstructMesh  scene.mvs
+sudo /usr/local/bin/OpenMVS/RefineMesh scene_mesh.mvs
+sudo /usr/local/bin/OpenMVS/TextureMesh scene_mesh_texture.mvs --export-type ply
+```
+You will get a .ply model file and .png texture file.
+
+The default parameter already use the pose graph and generate mvs file.
+If you want the version without the pose graph and the refine mesh, you can change the parameter in r3live_reconstruct_mesh.launch file.
 
 ### 5.4 Visualize your saved maps.
 As default, your offline map (and reconstructed mesh) will be saved in the directory **${HOME}/r3live_output**, you can open it with pcl_viewer (and [meshlab](https://www.meshlab.net/)).
@@ -123,12 +137,18 @@ Visualizing your offline point cloud maps (with suffix *.pcd):
 cd ${HOME}/r3live_output
 pcl_viewer rgb_pt.pcd
 ```
+div align="center">
+<img src="./pointcloud.png" alt="video" width="80%" />
+</div>
 
 Visualizing your reconstructed mesh (with suffix *.ply):
 ```
 cd ${HOME}/r3live_output
-meshlab textured_mesh.ply
+meshlab r3live_reconstruct_mesh.ply
 ```
+<div align="center">
+<img src="./modeling.png" alt="video" width="80%" />
+</div>
 
 ## 6. Sample and run your own data
 ### 6.1  Livox-ros-driver for R2/R3LIVE
