@@ -80,7 +80,7 @@ We have successfully test our algorithm with version **3.3.1**, **3.4.16**, **4.
 Clone this repository and catkin_make:
 ```
 cd ~/catkin_ws/src
-git clone https://github.com/hku-mars/r3live.git
+git clone https://github.com/nicetryzz/r3live.git -b publish-0.1
 cd ../
 catkin_make
 source ~/catkin_ws/devel/setup.bash

@@ -32,13 +32,19 @@
     <param name="smooth_mesh_factor" value="5" />
     
     <!-- The working directory, where we input the offline maps files and output the reconstructed mesh  -->
-    <param name="working_dir" value="/home/hqlab/workspace/r3live_result/2022_5_31/small_15" />
+    <param name="working_dir" value="/home/hqlab/workspace/r3live_result/test" />
     
     <!-- The factor of smoothing the texture of mesh -->
     <param name="texturing_smooth_factor" value="10" />
     
     <!-- The name of the offline map files (with suffix *.r3live) -->
     <param name="offline_map_name" value="test.r3live" />
+
+    <!-- The flag for pose graph -->
+    <param name="if_pose_graph" value="true" type="bool"/>
+
+    <!-- The flag for generate MVS files -->
+    <param name="if_generate_MVS" value="true" type="bool"/>
 
     <!-- launch-prefix="gdb -ex run - -args" -->
     <!-- <node pkg="r3live" type="r3live_meshing" name="r3live_meshing"  output="screen" launch-prefix="gdb -ex run - -args" /> -->

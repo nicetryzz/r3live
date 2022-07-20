@@ -213,6 +213,7 @@ bool pose_graph( Offline_map_recorder &r3live_map_recorder){
             edges.push_back(e);
         }
     }
+    PoseGraphVertex vertex_origin = vectices[0]->getVertex();
     EdgeSE3LieAlgebra *e = new EdgeSE3LieAlgebra();
     e->setId(number_of_image_frame - 1);
     e->setVertex(0, optimizer.vertices()[number_of_image_frame - 1]);
@@ -225,7 +226,9 @@ bool pose_graph( Offline_map_recorder &r3live_map_recorder){
     edges.push_back(e);
     optimizer.initializeOptimization();
     optimizer.optimize(30);
-    PoseGraphVertex vertex_change = vectices[0]->getVertex();
+    PoseGraphVertex vertex_change;
+    vertex_change.R =  vertex_origin.R * vectices[0]->getVertex().R.transpose();
+    vertex_change.C = vectices[0]->getVertex().C - vertex_origin.C;
 
     for (int frame_idx = 0; frame_idx < number_of_image_frame; frame_idx++ )
     {
